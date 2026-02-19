@@ -1,4 +1,5 @@
-const http = require("http");
+const express = require("express");
+const app = express();
 
 const players = {};
 const feed = [];
@@ -33,78 +34,82 @@ function rollItem() {
   return ITEMS[ITEMS.length - 1];
 }
 
-const server = http.createServer((req, res) => {
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Content-Type", "application/json; charset=utf-8");
+app.use(express.json());
+app.use(express.static("public")); // ← САЙТ
 
-  const url = new URL(req.url, "http://localhost");
-  const id = url.searchParams.get("id");
-  if (!id) return res.end(JSON.stringify({ error: "no_id" }));
+// ===== STATS =====
+app.get("/stats", (req, res) => {
+  const { id } = req.query;
+  if (!id) return res.json({ error: "no_id" });
 
   const player = getPlayer(id);
+  res.json({
+    ...player,
+    online: Object.keys(players).length
+  });
+});
 
-  // ===== STATS =====
-  if (url.pathname === "/stats") {
-    return res.end(JSON.stringify({
-      ...player,
-      online: Object.keys(players).length
-    }));
+// ===== OPEN CASES =====
+app.get("/open", (req, res) => {
+  const { id, count = 1 } = req.query;
+  if (!id) return res.json({ error: "no_id" });
+
+  const c = Math.min(15, Math.max(1, Number(count)));
+  const cost = c * 10;
+
+  const player = getPlayer(id);
+  if (player.balance < cost) {
+    return res.json({ error: "no_money" });
   }
 
-  // ===== OPEN CASES =====
-  if (url.pathname === "/open") {
-    const count = Math.min(15, Math.max(1, Number(url.searchParams.get("count") || 1)));
-    const cost = count * 10;
-    if (player.balance < cost) {
-      return res.end(JSON.stringify({ error: "no_money" }));
-    }
+  const drops = [];
+  for (let i = 0; i < c; i++) {
+    const item = rollItem();
+    drops.push(item);
 
-    const drops = [];
-    for (let i = 0; i < count; i++) {
-      const item = rollItem();
-      drops.push(item);
+    const key = item.weapon + " | " + item.skin;
+    player.inventory[key] ??= { ...item, qty: 0 };
+    player.inventory[key].qty++;
 
-      player.inventory[item.weapon + " | " + item.skin] ??= {
-        ...item,
-        qty: 0
-      };
-      player.inventory[item.weapon + " | " + item.skin].qty++;
-
-      feed.unshift({
-        player: id.slice(0, 4),
-        item: `${item.weapon} | ${item.skin}`,
-        rarity: item.rarity
-      });
-    }
-
-    feed.length = 25;
-    player.balance -= cost;
-    player.spent += cost;
-    player.opened += count;
-
-    return res.end(JSON.stringify({ drops }));
+    feed.unshift({
+      player: id.slice(0, 4),
+      item: key,
+      rarity: item.rarity
+    });
   }
 
-  // ===== SELL =====
-  if (url.pathname === "/sell") {
-    let profit = 0;
-    for (let k in player.inventory) {
-      profit += player.inventory[k].price * player.inventory[k].qty;
-    }
-    player.inventory = {};
-    player.balance += profit;
-    return res.end(JSON.stringify({ profit }));
+  feed.length = 25;
+  player.balance -= cost;
+  player.spent += cost;
+  player.opened += c;
+
+  res.json({ drops });
+});
+
+// ===== SELL =====
+app.get("/sell", (req, res) => {
+  const { id } = req.query;
+  if (!id) return res.json({ error: "no_id" });
+
+  const player = getPlayer(id);
+  let profit = 0;
+
+  for (let k in player.inventory) {
+    profit += player.inventory[k].price * player.inventory[k].qty;
   }
 
-  // ===== FEED =====
-  if (url.pathname === "/feed") {
-    return res.end(JSON.stringify(feed));
-  }
+  player.inventory = {};
+  player.balance += profit;
 
-  res.end(JSON.stringify({ ok: true }));
+  res.json({ profit });
+});
+
+// ===== FEED =====
+app.get("/feed", (req, res) => {
+  res.json(feed);
 });
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
+app.listen(PORT, () => {
   console.log("Server running on port", PORT);
 });
