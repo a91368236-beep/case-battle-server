@@ -1,149 +1,53 @@
-<!DOCTYPE html>
-<html lang="ru">
-<head>
-<meta charset="UTF-8">
-<title>Case Battle</title>
-
-<style>
-body {
-  margin: 0;
-  font-family: Arial, sans-serif;
-  background: radial-gradient(circle at top, #1b2838, #0b141f);
-  color: #eaeaea;
-}
-.app { max-width: 1400px; margin:auto; padding:15px }
-
-.header {
-  display:flex; justify-content:space-between; align-items:center;
-  background:#0f1923; padding:15px 25px; border-radius:12px;
-}
-.logo { font-size:26px; font-weight:bold; color:#66c0f4 }
-.stats { display:flex; gap:20px }
-
-.main {
-  margin-top:15px;
-  display:grid; grid-template-columns:2fr 1fr; gap:15px;
-}
-
-.case {
-  background:#162231; border-radius:15px; padding:20px;
-}
-.case-view {
-  height:260px; background:#0c1622; border-radius:12px;
-  display:flex; align-items:center; justify-content:center;
-  font-size:22px; margin-bottom:10px;
-}
-.controls { display:flex; gap:10px }
-.controls input {
-  width:80px; background:#0f1923; border:none; color:white;
-  font-size:18px; border-radius:8px; text-align:center;
-}
-.controls button {
-  flex:1; background:linear-gradient(#7fbf00,#5c7e10);
-  border:none; font-size:20px; border-radius:8px; cursor:pointer;
-}
-
-.inventory {
-  background:#0f1923; border-radius:15px; padding:15px;
-}
-.inv-item {
-  padding:6px; margin:4px 0; border-left:4px solid;
-}
-.common{border-color:#aaa}
-.mil{border-color:#4b69ff}
-.restricted{border-color:#8847ff}
-.classified{border-color:#d32ce6}
-.covert{border-color:#eb4b4b}
-
-.feed {
-  margin-top:15px; background:#0f1923;
-  border-radius:15px; padding:15px;
-}
-.feed-item { font-size:14px; margin:4px 0 }
-</style>
-</head>
-
-<body>
-<div class="app">
-
-<div class="header">
-  <div class="logo">CASE BATTLE</div>
-  <div class="stats">
-    <div>💰 <span id="balance">0</span></div>
-    <div>📦 <span id="opened">0</span></div>
-    <div>👤 <span id="online">0</span></div>
-  </div>
-</div>
-
-<div class="main">
-  <div class="case">
-    <div class="case-view" id="caseView">Открой кейс</div>
-    <div class="controls">
-      <input type="number" min="1" max="15" value="1" id="count">
-      <button onclick="openCases()">OPEN</button>
-    </div>
-  </div>
-
-  <div class="inventory">
-    <h3>Инвентарь</h3>
-    <div id="inv"></div>
-    <button onclick="sellAll()">Продать всё</button>
-  </div>
-</div>
-
-<div class="feed">
-  <h3>LIVE DROPS</h3>
-  <div id="feed"></div>
-</div>
-
-</div>
-
 <script>
-const API = "http://localhost:3000";
-let id = localStorage.playerId ??= crypto.randomUUID();
+const id = localStorage.playerId ??= crypto.randomUUID();
 
 async function load() {
-  const r = await fetch(`${API}/stats?id=${id}`);
+  const r = await fetch(`/stats?id=${id}`);
   const d = await r.json();
-  balance.innerText = d.balance;
-  opened.innerText = d.opened;
-  online.innerText = d.online;
 
-  inv.innerHTML = Object.values(d.inventory).map(i =>
-    `<div class="inv-item ${i.rarity}">
-      ${i.weapon} | ${i.skin} × ${i.qty}
-    </div>`
-  ).join("") || "Пусто";
+  balance.textContent = d.balance;
+  opened.textContent = d.opened;
+  online.textContent = d.online;
+
+  inv.innerHTML = Object.values(d.inventory).length
+    ? Object.values(d.inventory).map(i => `
+      <div class="inv-item ${i.rarity}">
+        ${i.weapon} | ${i.skin} × ${i.qty}
+      </div>
+    `).join("")
+    : "Пусто";
 }
 
 async function openCases() {
   const c = count.value;
-  const r = await fetch(`${API}/open?id=${id}&count=${c}`);
+  const r = await fetch(`/open?id=${id}&count=${c}`);
   const d = await r.json();
   if (d.error) return alert("Недостаточно монет");
-  caseView.innerText = d.drops.map(i => `${i.weapon} | ${i.skin}`).join(" | ");
+
+  caseView.textContent = d.drops
+    .map(i => `${i.weapon} | ${i.skin}`)
+    .join(" | ");
+
   load();
 }
 
 async function sellAll() {
-  await fetch(`${API}/sell?id=${id}`);
+  await fetch(`/sell?id=${id}`);
   load();
 }
 
 async function loadFeed() {
-  const r = await fetch(`${API}/feed?id=${id}`);
+  const r = await fetch(`/feed`);
   const d = await r.json();
-  feed.innerHTML = d.map(f =>
-    `<div class="feed-item ${f.rarity}">
+
+  feed.innerHTML = d.map(f => `
+    <div class="feed-item ${f.rarity}">
       ${f.player} выбил ${f.item}
-    </div>`
-  ).join("");
+    </div>
+  `).join("");
 }
 
 load();
 loadFeed();
 setInterval(loadFeed, 2500);
 </script>
-
-</body>
-</html>

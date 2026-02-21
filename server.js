@@ -1,115 +1,116 @@
 const express = require("express");
+const fs = require("fs");
+const path = require("path");
+
 const app = express();
-
-const players = {};
-const feed = [];
-
-const ITEMS = [
-  { weapon:"AK-47", skin:"Redline", rarity:"classified", chance:5, price:120 },
-  { weapon:"AWP", skin:"Asiimov", rarity:"covert", chance:2, price:350 },
-  { weapon:"M4A1-S", skin:"Decimator", rarity:"restricted", chance:15, price:60 },
-  { weapon:"Glock-18", skin:"Water Elemental", rarity:"mil", chance:30, price:25 },
-  { weapon:"P250", skin:"Sand Dune", rarity:"common", chance:48, price:3 }
-];
-
-function getPlayer(id) {
-  if (!players[id]) {
-    players[id] = {
-      balance: 100,
-      spent: 0,
-      opened: 0,
-      inventory: {}
-    };
-  }
-  return players[id];
-}
-
-function rollItem() {
-  let r = Math.random() * 100;
-  let sum = 0;
-  for (let i of ITEMS) {
-    sum += i.chance;
-    if (r < sum) return i;
-  }
-  return ITEMS[ITEMS.length - 1];
-}
+const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
-app.use(express.static("public")); // ← САЙТ
+app.use(express.static("public"));
 
-// ===== STATS =====
+/* ================== БАЗА ================== */
+const DB_FILE = path.join(__dirname, "players.json");
+
+function loadDB() {
+  if (!fs.existsSync(DB_FILE)) return {};
+  return JSON.parse(fs.readFileSync(DB_FILE, "utf8"));
+}
+
+function saveDB(db) {
+  fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2));
+}
+
+let players = loadDB();
+
+/* ================== ОДИН ИГРОК ================== */
+const GLOBAL_ID = "global_player";
+
+function getPlayer() {
+  if (!players[GLOBAL_ID]) {
+    players[GLOBAL_ID] = {
+      balance: 1000,
+      spent: 0,
+      opened: 0,
+      inventory: {},
+      lastSeen: Date.now()
+    };
+    saveDB(players);
+  }
+  return players[GLOBAL_ID];
+}
+
+/* ================== API ================== */
+
+// статистика
 app.get("/stats", (req, res) => {
-  const { id } = req.query;
-  if (!id) return res.json({ error: "no_id" });
+  const p = getPlayer();
 
-  const player = getPlayer(id);
   res.json({
-    ...player,
-    online: Object.keys(players).length
+    balance: p.balance,
+    opened: p.opened,
+    inventory: p.inventory,
+    online: 1
   });
 });
 
-// ===== OPEN CASES =====
+// открыть кейсы
 app.get("/open", (req, res) => {
-  const { id, count = 1 } = req.query;
-  if (!id) return res.json({ error: "no_id" });
+  const p = getPlayer();
+  const count = Math.max(1, Math.min(15, +req.query.count || 1));
+  const price = count * 10;
 
-  const c = Math.min(15, Math.max(1, Number(count)));
-  const cost = c * 10;
+  if (p.balance < price)
+    return res.json({ error: "no money" });
 
-  const player = getPlayer(id);
-  if (player.balance < cost) {
-    return res.json({ error: "no_money" });
-  }
+  p.balance -= price;
+  p.spent += price;
+  p.opened += count;
+  p.lastSeen = Date.now();
 
   const drops = [];
-  for (let i = 0; i < c; i++) {
-    const item = rollItem();
+
+  for (let i = 0; i < count; i++) {
+    const item = {
+      weapon: "AK-47",
+      skin: "Redline",
+      rarity: "classified",
+      qty: 1
+    };
+
+    const key = item.weapon + item.skin;
+    p.inventory[key] ??= { ...item, qty: 0 };
+    p.inventory[key].qty++;
+
     drops.push(item);
-
-    const key = item.weapon + " | " + item.skin;
-    player.inventory[key] ??= { ...item, qty: 0 };
-    player.inventory[key].qty++;
-
-    feed.unshift({
-      player: id.slice(0, 4),
-      item: key,
-      rarity: item.rarity
-    });
   }
 
-  feed.length = 25;
-  player.balance -= cost;
-  player.spent += cost;
-  player.opened += c;
-
+  saveDB(players);
   res.json({ drops });
 });
 
-// ===== SELL =====
+// продать всё
 app.get("/sell", (req, res) => {
-  const { id } = req.query;
-  if (!id) return res.json({ error: "no_id" });
+  const p = getPlayer();
 
-  const player = getPlayer(id);
-  let profit = 0;
-
-  for (let k in player.inventory) {
-    profit += player.inventory[k].price * player.inventory[k].qty;
+  let total = 0;
+  for (const i of Object.values(p.inventory)) {
+    total += i.qty * 5;
   }
 
-  player.inventory = {};
-  player.balance += profit;
+  p.balance += total;
+  p.inventory = {};
+  p.lastSeen = Date.now();
 
-  res.json({ profit });
+  saveDB(players);
+  res.json({ sold: total });
 });
 
-// ===== FEED =====
+// live feed (пока пусто)
 app.get("/feed", (req, res) => {
-  res.json(feed);
+  res.json([]);
 });
 
-const PORT = process.env.PORT || 3000;
+/* ================== START ================== */
 app.listen(PORT, () => {
-  console.log("Server running on port", PORT);
+  console.log("✅ Server running on port", PORT);
 });
