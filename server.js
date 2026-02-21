@@ -5,115 +5,91 @@ const path = require("path");
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-/* ================== MIDDLEWARE ================== */
-app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
+app.use(express.json());
 
-/* ================== DB ================== */
+/* ===== DB ===== */
 const DB_FILE = path.join(__dirname, "players.json");
 
-function loadDB() {
-  if (!fs.existsSync(DB_FILE)) return {};
-  return JSON.parse(fs.readFileSync(DB_FILE, "utf8"));
-}
+const loadDB = () =>
+  fs.existsSync(DB_FILE) ? JSON.parse(fs.readFileSync(DB_FILE)) : {};
 
-function saveDB(db) {
+const saveDB = db =>
   fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2));
-}
 
 let players = loadDB();
 
-/* ================== PLAYER ================== */
-function getPlayer(id) {
-  if (!id) return null;
+/* ===== SKINS ===== */
+const SKINS = [
+  { name: "Разработчик Артём", price: 110, chance: 7 },
+  { name: "Класуха разработчика Артёма", price: 1, chance: 24 },
+  { name: "Лудаман Валера", price: 60, chance: 3 },
+  { name: "Кссер Саня", price: 70, chance: 3 },
+  { name: "РКН", price: 3, chance: 20 },
+  { name: "Гномы Валеро Крады", price: 18, chance: 21 },
+  { name: "Репыши", price: 20, chance: 19 }
+];
 
+function rollSkin() {
+  const total = SKINS.reduce((s, i) => s + i.chance, 0);
+  let r = Math.random() * total;
+  for (const skin of SKINS) {
+    if ((r -= skin.chance) <= 0) return skin;
+  }
+}
+
+/* ===== PLAYER ===== */
+function getPlayer(id) {
   if (!players[id]) {
     players[id] = {
-      balance: 1000,
+      balance: 100,
       opened: 0,
-      inventory: {},
-      lastSeen: Date.now()
+      inventory: {}
     };
     saveDB(players);
   }
   return players[id];
 }
 
-/* ================== ROUTES ================== */
+/* ===== ROUTES ===== */
+app.get("/", (_, res) =>
+  res.sendFile(path.join(__dirname, "public", "index.html"))
+);
 
-// гарантированно отдаём фронт
-app.get("/", (req, res) => {
-  res.sendFile(path.join(__dirname, "public", "index.html"));
-});
-
-// stats
 app.get("/stats", (req, res) => {
   const p = getPlayer(req.query.id);
-  if (!p) return res.status(400).json({ error: "no id" });
-
-  res.json({
-    balance: p.balance,
-    opened: p.opened,
-    inventory: p.inventory,
-    online: Object.keys(players).length
-  });
+  res.json({ ...p, online: Object.keys(players).length });
 });
 
-// open cases
 app.get("/open", (req, res) => {
   const p = getPlayer(req.query.id);
-  if (!p) return res.status(400).json({ error: "no id" });
+  if (p.balance < 10) return res.json({ error: true });
 
-  const count = Math.max(1, Math.min(15, +req.query.count || 1));
-  const price = count * 10;
+  p.balance -= 10;
+  p.opened++;
 
-  if (p.balance < price)
-    return res.json({ error: "no money" });
-
-  p.balance -= price;
-  p.opened += count;
-  p.lastSeen = Date.now();
-
-  const drops = [];
-
-  for (let i = 0; i < count; i++) {
-    const item = {
-      weapon: "AK-47",
-      skin: "Redline",
-      rarity: "classified",
-      qty: 1
-    };
-
-    const key = item.weapon + item.skin;
-    p.inventory[key] ??= { ...item, qty: 0 };
-    p.inventory[key].qty++;
-
-    drops.push(item);
-  }
+  const skin = rollSkin();
+  p.inventory[skin.name] ??= { ...skin, qty: 0 };
+  p.inventory[skin.name].qty++;
 
   saveDB(players);
-  res.json({ drops });
+  res.json({ skin });
 });
 
-// sell all
 app.get("/sell", (req, res) => {
   const p = getPlayer(req.query.id);
-  if (!p) return res.status(400).json({ error: "no id" });
+  let sum = 0;
 
-  let total = 0;
-  for (const i of Object.values(p.inventory)) {
-    total += i.qty * 5;
-  }
+  for (const i of Object.values(p.inventory))
+    sum += i.price * i.qty;
 
-  p.balance += total;
+  p.balance += sum;
   p.inventory = {};
-  p.lastSeen = Date.now();
-
   saveDB(players);
-  res.json({ sold: total });
+
+  res.json({ sold: sum });
 });
 
-/* ================== START ================== */
-app.listen(PORT, () => {
-  console.log("✅ Server running on port", PORT);
-});
+app.listen(PORT, () =>
+  console.log("✅ Server started on", PORT)
+);

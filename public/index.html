@@ -1,58 +1,89 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-  <meta charset="UTF-8">
-  <title>Case Battle</title>
-  <style>
-    body {
-      background: #111;
-      color: #eee;
-      font-family: Arial;
-      padding: 20px;
-    }
-    button, input {
-      padding: 6px;
-      margin: 4px;
-    }
-    .inv-item {
-      background: #222;
-      padding: 6px;
-      margin: 4px 0;
-      border-left: 4px solid #d32ce6;
-    }
-  </style>
+<meta charset="UTF-8">
+<title>🔥 Case Battle</title>
+
+<style>
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: "Segoe UI", Arial;
+  background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+  color: #fff;
+}
+
+.app {
+  max-width: 900px;
+  margin: auto;
+  padding: 20px;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.card {
+  background: rgba(0,0,0,.4);
+  padding: 16px;
+  border-radius: 12px;
+  margin-bottom: 16px;
+}
+
+button {
+  background: #ff9800;
+  border: none;
+  padding: 12px 18px;
+  border-radius: 8px;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+button:hover { opacity: .9; }
+
+.inventory {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.item {
+  background: rgba(255,255,255,.08);
+  padding: 10px;
+  border-radius: 8px;
+}
+
+.price { color: #ffd54f; }
+</style>
 </head>
+
 <body>
+<div class="app">
 
-<h1>🎁 Case Battle</h1>
+  <div class="header">
+    <div>💰 Баланс: <b id="balance">0</b></div>
+    <div>📦 Открыто: <b id="opened">0</b></div>
+    <div>🟢 Онлайн: <b id="online">0</b></div>
+  </div>
 
-<div>
-  💰 Баланс: <b id="balance">0</b><br>
-  📦 Открыто: <b id="opened">0</b><br>
-  🟢 Онлайн: <b id="online">0</b>
+  <div class="card">
+    <button onclick="openCase()">🎁 Открыть кейс (10)</button>
+    <button onclick="sellAll()">💸 Продать всё</button>
+    <p id="drop"></p>
+  </div>
+
+  <div class="card">
+    <h3>🎒 Инвентарь</h3>
+    <div id="inv" class="inventory"></div>
+  </div>
+
 </div>
-
-<hr>
-
-<input id="count" type="number" min="1" max="15" value="1">
-<button onclick="openCases()">Открыть</button>
-<button onclick="sellAll()">Продать всё</button>
-
-<h3>🎯 Выпало</h3>
-<div id="caseView">—</div>
-
-<h3>🎒 Инвентарь</h3>
-<div id="inv">—</div>
 
 <script>
 const id = localStorage.playerId ??= crypto.randomUUID();
-
-const balance = document.getElementById("balance");
-const opened = document.getElementById("opened");
-const online = document.getElementById("online");
-const inv = document.getElementById("inv");
-const caseView = document.getElementById("caseView");
-const count = document.getElementById("count");
 
 async function load() {
   const r = await fetch(`/stats?id=${id}`);
@@ -63,29 +94,32 @@ async function load() {
   online.textContent = d.online;
 
   inv.innerHTML = Object.values(d.inventory).length
-    ? Object.values(d.inventory).map(i =>
-        `<div class="inv-item">${i.weapon} | ${i.skin} × ${i.qty}</div>`
-      ).join("")
+    ? Object.values(d.inventory).map(i => `
+      <div class="item">
+        <b>${i.name}</b><br>
+        <span class="price">${i.price}💰</span><br>
+        x${i.qty}
+      </div>`).join("")
     : "Пусто";
 }
 
-async function openCases() {
-  const r = await fetch(`/open?id=${id}&count=${count.value}`);
+async function openCase() {
+  const r = await fetch(`/open?id=${id}`);
   const d = await r.json();
-  if (d.error) return alert("Недостаточно монет");
+  if (d.error) return alert("Недостаточно денег");
 
-  caseView.textContent = d.drops.map(i => `${i.weapon} | ${i.skin}`).join(" | ");
+  drop.textContent = `🎉 Выпало: ${d.skin.name} (${d.skin.price}💰)`;
   load();
 }
 
 async function sellAll() {
-  await fetch(`/sell?id=${id}`);
-  caseView.textContent = "Продано всё";
+  const r = await fetch(`/sell?id=${id}`);
+  const d = await r.json();
+  drop.textContent = `💸 Продано на ${d.sold}`;
   load();
 }
 
 load();
 </script>
-
 </body>
 </html>
