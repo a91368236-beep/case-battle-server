@@ -23,53 +23,54 @@ function saveDB(db) {
 
 let players = loadDB();
 
-/* ================== ONE GLOBAL PLAYER ================== */
-const GLOBAL_ID = "global_player";
+/* ================== PLAYER ================== */
+function getPlayer(id) {
+  if (!id) return null;
 
-function getPlayer() {
-  if (!players[GLOBAL_ID]) {
-    players[GLOBAL_ID] = {
+  if (!players[id]) {
+    players[id] = {
       balance: 1000,
-      spent: 0,
       opened: 0,
       inventory: {},
       lastSeen: Date.now()
     };
     saveDB(players);
   }
-  return players[GLOBAL_ID];
+  return players[id];
 }
 
 /* ================== ROUTES ================== */
 
-// 🔥 ГАРАНТИРОВАННАЯ ОТДАЧА FRONTEND
+// гарантированно отдаём фронт
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
 // stats
 app.get("/stats", (req, res) => {
-  const p = getPlayer();
+  const p = getPlayer(req.query.id);
+  if (!p) return res.status(400).json({ error: "no id" });
+
   res.json({
     balance: p.balance,
     opened: p.opened,
     inventory: p.inventory,
-    online: 1
+    online: Object.keys(players).length
   });
 });
 
 // open cases
 app.get("/open", (req, res) => {
-  const p = getPlayer();
+  const p = getPlayer(req.query.id);
+  if (!p) return res.status(400).json({ error: "no id" });
+
   const count = Math.max(1, Math.min(15, +req.query.count || 1));
   const price = count * 10;
 
-  if (p.balance < price) {
+  if (p.balance < price)
     return res.json({ error: "no money" });
-  }
 
   p.balance -= price;
-  p.spent += price;
   p.opened += count;
   p.lastSeen = Date.now();
 
@@ -96,7 +97,8 @@ app.get("/open", (req, res) => {
 
 // sell all
 app.get("/sell", (req, res) => {
-  const p = getPlayer();
+  const p = getPlayer(req.query.id);
+  if (!p) return res.status(400).json({ error: "no id" });
 
   let total = 0;
   for (const i of Object.values(p.inventory)) {
@@ -109,11 +111,6 @@ app.get("/sell", (req, res) => {
 
   saveDB(players);
   res.json({ sold: total });
-});
-
-// feed (stub)
-app.get("/feed", (req, res) => {
-  res.json([]);
 });
 
 /* ================== START ================== */
