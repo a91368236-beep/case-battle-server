@@ -1,53 +1,105 @@
-<script>
-const id = localStorage.playerId ??= crypto.randomUUID();
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <title>Case Battle</title>
+  <style>
+    body {
+      background: #111;
+      color: #eee;
+      font-family: Arial, sans-serif;
+      padding: 20px;
+    }
+    button {
+      padding: 8px 14px;
+      margin: 5px 0;
+      cursor: pointer;
+    }
+    input {
+      width: 60px;
+      padding: 5px;
+    }
+    .inv-item {
+      padding: 6px;
+      margin: 4px 0;
+      background: #222;
+      border-left: 4px solid #888;
+    }
+    .classified { border-color: #d32ce6; }
+  </style>
+</head>
+<body>
 
-async function load() {
-  const r = await fetch(`/stats?id=${id}`);
-  const d = await r.json();
+  <h1>🎁 Case Battle</h1>
 
-  balance.textContent = d.balance;
-  opened.textContent = d.opened;
-  online.textContent = d.online;
+  <div>
+    💰 Баланс: <b id="balance">0</b><br>
+    📦 Открыто кейсов: <b id="opened">0</b><br>
+    🟢 Онлайн: <b id="online">0</b>
+  </div>
 
-  inv.innerHTML = Object.values(d.inventory).length
-    ? Object.values(d.inventory).map(i => `
-      <div class="inv-item ${i.rarity}">
-        ${i.weapon} | ${i.skin} × ${i.qty}
-      </div>
-    `).join("")
-    : "Пусто";
-}
+  <hr>
 
-async function openCases() {
-  const c = count.value;
-  const r = await fetch(`/open?id=${id}&count=${c}`);
-  const d = await r.json();
-  if (d.error) return alert("Недостаточно монет");
+  <div>
+    <input id="count" type="number" min="1" max="15" value="1">
+    <button onclick="openCases()">Открыть кейсы</button>
+    <button onclick="sellAll()">Продать всё</button>
+  </div>
 
-  caseView.textContent = d.drops
-    .map(i => `${i.weapon} | ${i.skin}`)
-    .join(" | ");
+  <h3>🎯 Выпало</h3>
+  <div id="caseView">—</div>
 
-  load();
-}
+  <h3>🎒 Инвентарь</h3>
+  <div id="inv">Загрузка...</div>
 
-async function sellAll() {
-  await fetch(`/sell?id=${id}`);
-  load();
-}
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      const balance = document.getElementById("balance");
+      const opened = document.getElementById("opened");
+      const online = document.getElementById("online");
+      const inv = document.getElementById("inv");
+      const caseView = document.getElementById("caseView");
+      const count = document.getElementById("count");
 
-async function loadFeed() {
-  const r = await fetch(`/feed`);
-  const d = await r.json();
+      async function load() {
+        const r = await fetch("/stats");
+        const d = await r.json();
 
-  feed.innerHTML = d.map(f => `
-    <div class="feed-item ${f.rarity}">
-      ${f.player} выбил ${f.item}
-    </div>
-  `).join("");
-}
+        balance.textContent = d.balance;
+        opened.textContent = d.opened;
+        online.textContent = d.online;
 
-load();
-loadFeed();
-setInterval(loadFeed, 2500);
-</script>
+        inv.innerHTML = Object.values(d.inventory).length
+          ? Object.values(d.inventory).map(i => `
+              <div class="inv-item ${i.rarity}">
+                ${i.weapon} | ${i.skin} × ${i.qty}
+              </div>
+            `).join("")
+          : "Пусто";
+      }
+
+      window.openCases = async function () {
+        const c = count.value;
+        const r = await fetch(`/open?count=${c}`);
+        const d = await r.json();
+        if (d.error) return alert("Недостаточно монет");
+
+        caseView.textContent = d.drops
+          .map(i => `${i.weapon} | ${i.skin}`)
+          .join(" | ");
+
+        load();
+      }
+
+      window.sellAll = async function () {
+        await fetch("/sell");
+        caseView.textContent = "Продано всё";
+        load();
+      }
+
+      load();
+    });
+  </script>
+
+</body>
+</html>

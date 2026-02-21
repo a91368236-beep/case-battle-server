@@ -5,10 +5,11 @@ const path = require("path");
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+/* ================== MIDDLEWARE ================== */
 app.use(express.json());
-app.use(express.static("public"));
+app.use(express.static(path.join(__dirname, "public")));
 
-/* ================== БАЗА ================== */
+/* ================== DB ================== */
 const DB_FILE = path.join(__dirname, "players.json");
 
 function loadDB() {
@@ -22,7 +23,7 @@ function saveDB(db) {
 
 let players = loadDB();
 
-/* ================== ОДИН ИГРОК ================== */
+/* ================== ONE GLOBAL PLAYER ================== */
 const GLOBAL_ID = "global_player";
 
 function getPlayer() {
@@ -39,12 +40,16 @@ function getPlayer() {
   return players[GLOBAL_ID];
 }
 
-/* ================== API ================== */
+/* ================== ROUTES ================== */
 
-// статистика
+// 🔥 ГАРАНТИРОВАННАЯ ОТДАЧА FRONTEND
+app.get("/", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "index.html"));
+});
+
+// stats
 app.get("/stats", (req, res) => {
   const p = getPlayer();
-
   res.json({
     balance: p.balance,
     opened: p.opened,
@@ -53,14 +58,15 @@ app.get("/stats", (req, res) => {
   });
 });
 
-// открыть кейсы
+// open cases
 app.get("/open", (req, res) => {
   const p = getPlayer();
   const count = Math.max(1, Math.min(15, +req.query.count || 1));
   const price = count * 10;
 
-  if (p.balance < price)
+  if (p.balance < price) {
     return res.json({ error: "no money" });
+  }
 
   p.balance -= price;
   p.spent += price;
@@ -88,7 +94,7 @@ app.get("/open", (req, res) => {
   res.json({ drops });
 });
 
-// продать всё
+// sell all
 app.get("/sell", (req, res) => {
   const p = getPlayer();
 
@@ -105,7 +111,7 @@ app.get("/sell", (req, res) => {
   res.json({ sold: total });
 });
 
-// live feed (пока пусто)
+// feed (stub)
 app.get("/feed", (req, res) => {
   res.json([]);
 });
