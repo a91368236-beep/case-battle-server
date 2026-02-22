@@ -5,5 +5,15 @@
     "opened": 0,
     "inventory": {},
     "lastSeen": 1771674307163
+  },
+  "4a70f84d-43c8-4601-baef-afc7988e57a2": {
+    "balance": 100,
+    "opened": 0,
+    "inventory": {}
+  },
+  "test": {
+    "balance": 100,
+    "opened": 0,
+    "inventory": {}
   }
 }
